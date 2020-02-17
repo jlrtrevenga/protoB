@@ -4,6 +4,7 @@
  * Espressif IoT Development Framework Configuration
  *
  */
+#define CONFIG_I2CDEV_TIMEOUT 1000
 
 #define CONFIG_ENABLE_ARDUINO_DEPENDS 1
 #define CONFIG_AUTOSTART_ARDUINO 1

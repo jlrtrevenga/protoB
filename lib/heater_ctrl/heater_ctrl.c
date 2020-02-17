@@ -67,7 +67,7 @@ void heater_ctrl_loop(void *pvParameter)
 //***************************************************************************** 
 //heater control events handler
 //*****************************************************************************
-static void heater_event_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) 
+void heater_event_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) 
 {
     ESP_LOGI(TAG, "EVENT_HANDLER: Event received: %s:%d", base, id);
 
