@@ -1,15 +1,10 @@
-/* Hello World Example
+/* Heater Control Test. Prototype B 
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
    Unless required by applicable law or agreed to in writing, this
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
    CONDITIONS OF ANY KIND, either express or implied.
-   
-   RTOS examples adapted to ESP32 esp-idf from:
-   Book: 161204_Mastering_the_FreeRTOS_Real_Time_Kernel-A_Hands-On_Tutorial_Guide.pdf
-         https://www.freertos.org/Documentation/RTOS_book.html
-   Chapter: 3.- Task Management
    
 */
 #include <stdio.h>

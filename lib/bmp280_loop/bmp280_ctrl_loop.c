@@ -13,7 +13,7 @@
 #include "esp_event_base.h"
 #include "bmp280_ctrl_loop.h"
 
-static const char *TAG = "BMP280_READ_LOOP";             // Task identifier
+static const char *TAG = "BMP280_CTRL_LOOP";             // Task identifier
 
 ESP_EVENT_DEFINE_BASE(BMP280_EVENTS)                // Event source task related definitions
 
@@ -146,7 +146,7 @@ void bmp280_event_handler(void* handler_args, esp_event_base_t base, int32_t id,
 
     default:
         //vTaskDelay(2000 / portTICK_PERIOD_MS);
-        ESP_LOGI(TAG, "Event processed: default");   
+        ESP_LOGI(TAG, "Event processed: BMP280_CL_default");   
         break;    
     }
 
