@@ -17,13 +17,11 @@ static const char *TAG = "BMP280_CTRL_LOOP";             // Task identifier
 
 ESP_EVENT_DEFINE_BASE(BMP280_EVENTS)                // Event source task related definitions
 
-#define DELAY_1s             (pdMS_TO_TICKS( 1000))
-#define DELAY_2s             (pdMS_TO_TICKS( 2000))
-#define DELAY_5s             (pdMS_TO_TICKS( 5000))
-#define EVENT_MAX_DELAY      (pdMS_TO_TICKS( 5000))
+#define TOLERABLE_REPEATED_READ_FAILS 3
 
 // Control Loop Parameters, received via pvParameter when the loop task is created.
-BMP280_control_loop_params_t  bmp280_ctrl_loop_params;
+static BMP280_control_loop_params_t  bmp280_ctrl_loop_params;
+static BMP280_control_loop_params_t* pxbmp280_ctrl_loop_params;
 
 
 //***************************************************************************** 
@@ -35,9 +33,9 @@ BMP280_control_loop_params_t  bmp280_ctrl_loop_params;
  * @brief TODO: Add signals to handle coordination: START, STOP, ETC.
  * @param[out] dev pointer to mesured values: temperature, pressure, (humidity)
  * @param[in] loop_period BMP280/BME280 read period
- * @param[in] port I2C port number
  * @param[in] sda_gpio GPIO pin for SDA
  * @param[in] scl_gpio GPIO pin for SCL
+ * @param[in] port I2C port number
  * @return `ESP_OK` on success
  */
 void bmp280_ctrl_loop(void *pvParameter)
@@ -45,20 +43,46 @@ void bmp280_ctrl_loop(void *pvParameter)
 //esp_err_t err;
 
     //Create local copy of "BMP280 Control Loop Parameters" on task creation.
-    BMP280_control_loop_params_t* pxbmp280_ctrl_loop_params = (BMP280_control_loop_params_t*) pvParameter;
+    //BMP280_control_loop_params_t* pxbmp280_ctrl_loop_params = (BMP280_control_loop_params_t*) pvParameter;
+    pxbmp280_ctrl_loop_params = (BMP280_control_loop_params_t*) pvParameter;
+
     bmp280_ctrl_loop_params.event_loop_handle = pxbmp280_ctrl_loop_params->event_loop_handle;
     bmp280_ctrl_loop_params.ulLoopPeriod      = pxbmp280_ctrl_loop_params->ulLoopPeriod;
     bmp280_ctrl_loop_params.sda_gpio          = pxbmp280_ctrl_loop_params->sda_gpio;
     bmp280_ctrl_loop_params.scl_gpio          = pxbmp280_ctrl_loop_params->scl_gpio;
     bmp280_ctrl_loop_params.I2C_port          = pxbmp280_ctrl_loop_params->I2C_port;
+    bmp280_ctrl_loop_params.pxBMP280_Measures = pxbmp280_ctrl_loop_params->pxBMP280_Measures;
+
+    //Inicializo las medidas de los sensores del BMS280
+    bmp280_ctrl_loop_params.pxBMP280_Measures->temperature.value = 0;
+    bmp280_ctrl_loop_params.pxBMP280_Measures->temperature.quality = NOT_INIT;
+    bmp280_ctrl_loop_params.pxBMP280_Measures->temperature.tickTime = 0;
+    bmp280_ctrl_loop_params.pxBMP280_Measures->temperature.type = TEMPERATURE;
+    //bmp280_ctrl_loop_params.pxBMP280_Measures->temperature.unit = CDEGREE;
+    //bmp280_ctrl_loop_params.pxBMP280_Measures->temperature.displayUnit = "ºC";
+    strcpy(bmp280_ctrl_loop_params.pxBMP280_Measures->temperature.unit, "ºC");
+    strcpy(bmp280_ctrl_loop_params.pxBMP280_Measures->temperature.displayUnit, "ºC");
+
+    bmp280_ctrl_loop_params.pxBMP280_Measures->pressure.value = 0;
+    bmp280_ctrl_loop_params.pxBMP280_Measures->pressure.quality = NOT_INIT;
+    bmp280_ctrl_loop_params.pxBMP280_Measures->pressure.tickTime = 0;
+    bmp280_ctrl_loop_params.pxBMP280_Measures->pressure.type = PRESSURE;
+    //bmp280_ctrl_loop_params.pxBMP280_Measures->pressure.unit = "Pa";
+    //bmp280_ctrl_loop_params.pxBMP280_Measures->Pressure.displayUnit = "Pa";
+    strcpy(bmp280_ctrl_loop_params.pxBMP280_Measures->pressure.unit, "Pa");
+    strcpy(bmp280_ctrl_loop_params.pxBMP280_Measures->pressure.displayUnit, "Pa");    
+
+    bmp280_ctrl_loop_params.pxBMP280_Measures->humidity.value = 0;
+    bmp280_ctrl_loop_params.pxBMP280_Measures->humidity.quality = NOT_INIT;
+    bmp280_ctrl_loop_params.pxBMP280_Measures->humidity.tickTime = 0;
+    bmp280_ctrl_loop_params.pxBMP280_Measures->humidity.type = HUMIDITY;
+    //bmp280_ctrl_loop_params.pxBMP280_Measures->humidity.unit = "%";
+    //bmp280_ctrl_loop_params.pxBMP280_Measures->humidity.displayUnit = "%";
+
+
 
     ESP_LOGI(TAG, "Process Start->Register Handled Events.");
     ESP_ERROR_CHECK(esp_event_handler_register_with(bmp280_ctrl_loop_params.event_loop_handle, BMP280_EVENTS, ESP_EVENT_ANY_ID, bmp280_event_handler, NULL));
-
-    // Receive loop period and measures structures from main loop
-    //int sda_gpio = xx21;
-    //int scl_gpio = xx22;
-    //int loop_period = xx;           //  Loop period in ms.
 
     bmp280_params_t params;
     bmp280_t dev;
@@ -69,29 +93,51 @@ void bmp280_ctrl_loop(void *pvParameter)
     ESP_ERROR_CHECK(bmp280_init(&dev, &params));
 
     bool bme280p = dev.id == BME280_CHIP_ID;
-    printf("BMP280: found %s\n", bme280p ? "BME280" : "BMP280");
+    ESP_LOGI(TAG, "BMP280: found %s\n", bme280p ? "BME280" : "BMP280");
 
     ESP_LOGI(TAG, "Process Start. Periodic Loop Check.");
     float pressure, temperature, humidity;
+    TickType_t tick;
     while (1) {
-        ESP_LOGI(TAG, "Periodic BMP280 read operation.");
         vTaskDelay(bmp280_ctrl_loop_params.ulLoopPeriod / portTICK_PERIOD_MS);
+        ESP_LOGI(TAG, "Periodic BMP280 read operation. Period: %d -------", bmp280_ctrl_loop_params.ulLoopPeriod);
         ESP_ERROR_CHECK(bmp280_force_measurement(&dev));
-        if (bmp280_read_float(&dev, &temperature, &pressure, &humidity) == ESP_OK) {
-            // TODO: Pasar los valores leidos a la variable ppal
+        tick = xTaskGetTickCount();        
 
-            // pasa los valores a las medidas. quality = GOOD_QUALITY/MED_QUALITY
-            printf("Pressure: %.2f Pa, Temperature: %.2f C", pressure, temperature);
-            if (bme280p)
-                printf(", Humidity: %.2f\n", humidity);
-            else
-                printf("\n");
-            } 
+        if (bmp280_read_float(&dev, &temperature, &pressure, &humidity) == ESP_OK) {
+            bmp280_ctrl_loop_params.pxBMP280_Measures->temperature.value = temperature;
+            bmp280_ctrl_loop_params.pxBMP280_Measures->temperature.quality = GOOD_QUALITY;
+            bmp280_ctrl_loop_params.pxBMP280_Measures->temperature.tickTime = tick;
+            bmp280_ctrl_loop_params.pxBMP280_Measures->pressure.value = pressure;
+            bmp280_ctrl_loop_params.pxBMP280_Measures->pressure.quality = GOOD_QUALITY;
+            bmp280_ctrl_loop_params.pxBMP280_Measures->pressure.tickTime = tick;            
+            ESP_LOGI(TAG, "Pressure: %.2f Pa, Temperature: %.2f C", pressure, temperature);
+            if (bme280p) {
+                bmp280_ctrl_loop_params.pxBMP280_Measures->humidity.value = humidity;
+                bmp280_ctrl_loop_params.pxBMP280_Measures->humidity.quality = GOOD_QUALITY;
+                bmp280_ctrl_loop_params.pxBMP280_Measures->humidity.tickTime = tick;  
+                ESP_LOGI(TAG, "Humidity: %.2f\n", humidity);
+                }
+            else {
+                bmp280_ctrl_loop_params.pxBMP280_Measures->humidity.value = 0;
+                bmp280_ctrl_loop_params.pxBMP280_Measures->humidity.quality = NOT_INIT;
+                bmp280_ctrl_loop_params.pxBMP280_Measures->humidity.tickTime = 0;
+                ESP_LOGI(TAG, "Humidity: NOT_INIT");
+                }
+            }
+        //READ FAIL: change quality, keep value and last READ tick time     
         else {
-            // corrige el valor de quality para que pueda procesarlo en caso de error de lectura
-            // quality = BAD_QUALITY
-            printf("Temperature/pressure reading failed\n");
-            continue;            
+            ESP_LOGE(TAG, "Temperature/pressure reading failed");
+            // More than TOLERABLE_REPEATED_READ_FAILS  => BAD_QUALITY
+            if (tick > (bmp280_ctrl_loop_params.pxBMP280_Measures->temperature.tickTime + TOLERABLE_REPEATED_READ_FAILS * bmp280_ctrl_loop_params.ulLoopPeriod)) {  
+                bmp280_ctrl_loop_params.pxBMP280_Measures->temperature.quality = BAD_QUALITY;
+                bmp280_ctrl_loop_params.pxBMP280_Measures->pressure.quality = BAD_QUALITY;
+                }
+            // Still < TOLERABLE_REPEATED_READ_FAILS  => TOL _QUALITY    
+            else {  
+                bmp280_ctrl_loop_params.pxBMP280_Measures->temperature.quality = TOL_QUALITY;
+                bmp280_ctrl_loop_params.pxBMP280_Measures->pressure.quality = TOL_QUALITY;
+                }            
             }
         }
 
@@ -141,6 +187,7 @@ void bmp280_event_handler(void* handler_args, esp_event_base_t base, int32_t id,
 
     case BMP280_CL_CHANGE_FREQ:
         //vTaskDelay(2000 / portTICK_PERIOD_MS);
+        bmp280_ctrl_loop_params.ulLoopPeriod = pxbmp280_ctrl_loop_params->ulLoopPeriod;
         ESP_LOGI(TAG, "Event processed: BMP280_CL_CHANGE_FREQ");   
         break;
 

@@ -26,26 +26,24 @@ typedef enum {
 typedef enum {
     NOT_INIT = 0,  
     GOOD_QUALITY = 1,       
-    MED_QUALITY = 2,        // read error, previous value is still usable
+    TOL_QUALITY = 2,        // read error, previous value is still usable (TOLERABLE)
     BAD_QUALITY = 3         // bad readout, invalid data
 } quality_te;
-
 
 /**
  * Configuration parameters for BMP280 module.
  * Use function bmp280_init_default_params to use default configuration.
  */
 typedef struct {
-    //char uuid[16];
-    char        tagId[16];
     float       value;
-    tm          timestamp;
-    quality_te  quality;           
+    quality_te  quality; 
+    TickType_t  tickTime;              
+    char        tagId[5];
     measure_te  type;
     char        unit[10];
     char        displayUnit[10];
 } measure_t;
-
+//    tm          timestamp;
 
 #ifdef __cplusplus
 }

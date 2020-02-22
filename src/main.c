@@ -19,6 +19,7 @@
 #include "esp_idf_lib_helpers.h"
 #include "bmp280_ctrl_loop.h"
 #include "bmp280.h"
+//#include "sensor.h"
 //#include "driver/gpio.h"
 
 #define DELAY_1s             (pdMS_TO_TICKS( 1000))
@@ -65,6 +66,12 @@ esp_event_loop_handle_t event_loop_h;
 //*****************************************************************************
 void app_main()
 {
+
+    // DEFINIR LOS NIVELES DE LOG POR TAG
+    esp_log_level_set("BMP280_CTRL_LOOP", 3);
+    esp_log_level_set("HEATER_CTRL", 2);
+    esp_log_level_set("protoB", 3);
+
     esp32_hello();
 
     // 
@@ -104,55 +111,66 @@ void app_main()
     if ( xTaskCreatePinnedToCore(&heater_ctrl_loop, "heater_ctrl_loop", 1024 * 2, 
                                  (void*) pxheater_ctrl_loop_params, 5,
                                  heater_ctrl_loop_params.pxTaskHandle, APP_CPU_NUM) != pdPASS ) {    
-        printf("heater_ctrl task creation failed\r\n");
+        ESP_LOGE(TAG, "heater_ctrl task creation failed");
     } else {
-    	printf("heater_ctrl task created\r\n");
+    	ESP_LOGI(TAG, "heater_ctrl task created");
     }
 
     // 2.1.1.- heater_test task, only for testing event reception and processing
     // TODO: Remove when tested.
     if ( xTaskCreatePinnedToCore(&heater_test_loop, "heater_test_loop", 1024 * 2, 
                                  NULL, 5, NULL, APP_CPU_NUM) != pdPASS ) {
-        printf("heater_test creation failed\r\n");
+        ESP_LOGE(TAG, "heater_test creation failed");
     } else {
-    	printf("heater_test created\r\n");
+    	ESP_LOGI(TAG, "heater_test created\r\n");
     }
 
 
     // 2.2.- bmp280_ctrl task loop: Init "bmp280 control loop parameters" and create task
+
+    BMP280_Measures_t BMP280_Measures;      // Values are updated in background by bmp280_control_loop
+
     BMP280_control_loop_params_t BMP280_ctrl_loop_params;
     BMP280_ctrl_loop_params.event_loop_handle = event_loop_h;
     BMP280_ctrl_loop_params.ulLoopPeriod = 1000;
     BMP280_ctrl_loop_params.pxTaskHandle = NULL;
     BMP280_ctrl_loop_params.sda_gpio = SDA_GPIO;
     BMP280_ctrl_loop_params.scl_gpio = SCL_GPIO;
+    BMP280_ctrl_loop_params.pxBMP280_Measures = &BMP280_Measures;
 
     BMP280_control_loop_params_t* pxBMP280_ctrl_loop_params = NULL;
     pxBMP280_ctrl_loop_params = &BMP280_ctrl_loop_params;
 
-    //static const char *pxTask01parms = "Task 1 is running\r\n"; 
     if ( xTaskCreatePinnedToCore(&bmp280_ctrl_loop, "bmp280_ctrl_loop", 1024 * 2, 
                                  (void*) pxBMP280_ctrl_loop_params, 5,
                                  BMP280_ctrl_loop_params.pxTaskHandle, APP_CPU_NUM) != pdPASS ) {    
-        printf("bmp280_ctrl task creation failed\r\n");
+        ESP_LOGE(TAG, "bmp280_ctrl task creation failed\r\n");
     } else {
-    	printf("bmp280_ctrl task created\r\n");
+    	ESP_LOGI(TAG, "bmp280_ctrl task created\r\n");
     }
 
     // 2.2.1.- bmp280_test task, only for testing event reception and processing
     // TODO: Remove when tested.
     if ( xTaskCreatePinnedToCore(&bmp280_test_loop, "bmp280_test_loop", 1024 * 2, 
                                  NULL, 5, NULL, APP_CPU_NUM) != pdPASS ) {
-        printf("bmp280_test creation failed\r\n");
+        ESP_LOGE(TAG, "bmp280_test creation failed\r\n");
     } else {
-    	printf("bmp280_test created\r\n");
+    	ESP_LOGI(TAG, "bmp280_test created\r\n");
     }
 
-
-
+    //TickType_t tick;
 	for(;;) {
 		ESP_LOGI(TAG, "Eternally waiting in loop");
+        //tick = xTaskGetTickCount();
 		vTaskDelay(DELAY_5s);          // Definir cada minuto
+        ESP_LOGI(TAG, "Ticktime: %d:  BMP280.Temp.v: %3.2f %s, BMP280.Temp.q: %d", xTaskGetTickCount(), 
+                BMP280_Measures.temperature.value, BMP280_Measures.temperature.displayUnit, BMP280_Measures.temperature.quality);
+        ESP_LOGI(TAG, "Ticktime: %d:  BMP280.Press.v: %6.2f %s, BMP280.Press.q: %d", xTaskGetTickCount(), 
+        BMP280_Measures.pressure.value, BMP280_Measures.pressure.displayUnit, BMP280_Measures.pressure.quality); 
+
+        // Test: Subir el periodo de muestreo       TODO: quitar cuando esté probado
+        //BMP280_ctrl_loop_params.ulLoopPeriod = BMP280_ctrl_loop_params.ulLoopPeriod + 1000;
+        //ESP_ERROR_CHECK(esp_event_post_to(event_loop_h, BMP280_EVENTS, BMP280_CL_CHANGE_FREQ, NULL, 0, EVENT_MAX_DELAY));               
 		}
   
 }
